@@ -1,8 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-swift build -c release
-bin_dir="$(swift build -c release --show-bin-path)"
+# SWIFT_BUILD_FLAGS opsional, mis. "--arch arm64 --arch x86_64" untuk universal.
+read -r -a build_flags <<< "${SWIFT_BUILD_FLAGS:-}"
+swift build -c release ${build_flags[@]+"${build_flags[@]}"}
+bin_dir="$(swift build -c release ${build_flags[@]+"${build_flags[@]}"} --show-bin-path)"
 swift scripts/make-icon.swift "$PWD/.build/AppIcon.iconset"
 iconutil -c icns "$PWD/.build/AppIcon.iconset" -o Resources/AppIcon.icns
 cp .build/AppIcon.iconset/icon_512x512@2x.png Resources/AppIcon.png

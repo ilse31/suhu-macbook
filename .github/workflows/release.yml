@@ -1,0 +1,54 @@
+name: Release DMG
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag rilis (mis. v0.2.0)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-14
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Versi dari tag
+        run: |
+          version="${TAG#v}"
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $version" Resources/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ github.run_number }}" Resources/Info.plist
+
+      - name: Test
+        run: swift test
+
+      - name: Build app (universal)
+        env:
+          SWIFT_BUILD_FLAGS: --arch arm64 --arch x86_64
+        run: bash scripts/build-app.sh
+
+      - name: Buat DMG
+        run: |
+          bash scripts/make-dmg.sh "$VERSION"
+          lipo -info "dist/Suhu Mac.app/Contents/MacOS/SuhuMacbook"
+
+      - name: Unggah ke GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          dmg="dist/SuhuMac-${VERSION}.dmg"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$dmg" --clobber
+          else
+            gh release create "$TAG" "$dmg" --title "Suhu Mac $TAG" --generate-notes --target "$GITHUB_SHA"
+          fi
